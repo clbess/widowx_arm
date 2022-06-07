@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="rostopic" type="rostopic" name="joint1" args="pub /joint_1/command std_msgs/Float64 0.0 " output="screen"/>
+  <node pkg="rostopic" type="rostopic" name="joint2" args="pub /joint_2/command std_msgs/Float64 'data: -0.9' " output="screen"/>
+  <node pkg="rostopic" type="rostopic" name="joint3" args="pub /joint_3/command std_msgs/Float64 0.7 " output="screen"/>
+  <node pkg="rostopic" type="rostopic" name="joint4" args="pub /joint_4/command std_msgs/Float64 1.5 " output="screen"/>
+  <node pkg="rostopic" type="rostopic" name="joint5" args="pub /joint_5/command std_msgs/Float64 0.0 " output="screen"/>
+</launch>
+

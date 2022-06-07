@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="rostopic" type="rostopic" name="gripper" args="pub /gripper_revolute_joint/command std_msgs/Float64 0.0 " output="screen"/>
+</launch>
+

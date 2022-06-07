@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="widowx_arm_controller" name="teleop_widowx" type="teleop_widowx" output="screen"/>
+</launch>
+

@@ -1,0 +1,319 @@
+#!/usr/bin/env python
+
+import roslib; roslib.load_manifest('widowx_arm_controller')
+import rospy
+import actionlib
+from control_msgs.msg import *
+from std_msgs.msg import *
+from sensor_msgs.msg import JointState
+import sys, select, os
+if os.name == 'nt':
+  import msvcrt
+else:
+  import tty, termios
+
+
+menu = """Control the WidowX arm !
+-------------------------
+1 : Move joint 1
+2 : Move joint 2
+3 : Move joint 3
+4 : Move joint 4
+5 : Move joint 5
+o : Open Gripper
+c : Close Gripper
+z : Set all joints to zero
+s : Start position
+g : Grip position from above
+h : Grip position from side
+q : Quit
+-------------------------"""
+
+control = """
+e : Rotates in positive direction
+r : Rotates in negative direction
+0 : Set position to 0
+space : Return to menu
+----------------------------------
+"""
+
+#JOINTS LIMITS
+JOINT1_MIN = -3.2
+JOINT1_MAX = 3.2
+JOINT2_MIN = -1.7
+JOINT2_MAX = 1.7
+JOINT3_MIN = -2.8
+JOINT3_MAX = 1.6
+JOINT4_MIN = -2.0
+JOINT4_MAX = 2.0
+JOINT5_MIN = -2.6
+JOINT5_MAX = 2.6
+
+#TO KEEP CURRENTS JOINTS POSITIONS
+joint1 = 0.0
+joint2 = 0.0
+joint3 = 0.0
+joint4 = 0.0
+joint5 = 0.0
+
+#TO GET CURRENT JOINTS POSITIONS
+def getJoints(msg):
+    global joint1, joint2, joint3, joint4, joint5
+    if 'joint_1' in msg.name:
+        index = msg.name.index('joint_1')
+        joint1 = msg.position[index]
+    if 'joint_2' in msg.name:
+        index = msg.name.index('joint_2')
+        joint2 = msg.position[index]
+    if 'joint_3' in msg.name:
+        index = msg.name.index('joint_3')
+        joint3 = msg.position[index]
+    if 'joint_4' in msg.name:
+        index = msg.name.index('joint_4')
+        joint4 = msg.position[index]
+    if 'joint_5' in msg.name:
+        index = msg.name.index('joint_5')
+        joint5 = msg.position[index]
+
+#TO GET KEYBOARD REQUESTS
+def getKey():
+    if os.name == 'nt':
+      if sys.version_info[0] >= 3:
+        return msvcrt.getch().decode()
+      else:
+        return msvcrt.getch()
+
+    tty.setraw(sys.stdin.fileno())
+    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+    if rlist:
+        key = sys.stdin.read(1)
+    else:
+        key = ''
+
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+    return key
+
+#TO VERIFY THAT REQUESTS STAY IN JOINTS LIMITS
+def constrain(input, low, high):
+    if input < low:
+      input = low
+    elif input > high:
+      input = high
+    else:
+      input = input
+    return input
+
+def checkJointLimits(data, joint):
+    if joint == "joint1":
+      data = constrain(data, JOINT1_MIN, JOINT1_MAX)
+    elif joint == "joint2":
+      data = constrain(data, JOINT2_MIN, JOINT2_MAX)
+    elif joint == "joint3":
+      data = constrain(data, JOINT3_MIN, JOINT3_MAX)
+    elif joint == "joint4":
+      data = constrain(data, JOINT4_MIN, JOINT4_MAX)
+    elif joint == "joint5":
+      data = constrain(data, JOINT5_MIN, JOINT5_MAX)
+    elif joint == "revolute":
+      data = constrain(data, REVOLUTE_MIN, REVOLUTE_MAX)
+    elif joint == "prismatic":
+      data = constrain(data, PRISMATIC_MIN, PRISMATIC_MAX)
+    return data
+
+
+if __name__=="__main__":
+    if os.name != 'nt':
+        settings = termios.tcgetattr(sys.stdin)
+
+    rospy.init_node('teleop_widowx_node')
+
+    joint = ''
+    joint_goal = Float64()
+    done = 0
+
+    #Subscriber to get current joints positions
+    joints_sub = rospy.Subscriber('/joint_states', JointState, getJoints)
+
+    #Publishers to move each joints
+    joint1_pub = rospy.Publisher('/joint_1/command', Float64, queue_size=10)
+    joint2_pub = rospy.Publisher('/joint_2/command', Float64, queue_size=10)
+    joint3_pub = rospy.Publisher('/joint_3/command', Float64, queue_size=10)
+    joint4_pub = rospy.Publisher('/joint_4/command', Float64, queue_size=10)
+    joint5_pub = rospy.Publisher('/joint_5/command', Float64, queue_size=10)
+    revolute_joint_pub = rospy.Publisher('/gripper_revolute_joint/command', Float64, queue_size=10)
+    prismatic_joint_pub = rospy.Publisher('/gripper_prismatic_joint/command', Float64, queue_size=10)
+
+    try:
+        while(1):
+            if done == 0:
+                print(menu)
+                done = 1
+            key = getKey()
+
+            if key == 'o' : #OPEN
+                joint_goal.data = 0.0
+                revolute_joint_pub.publish(joint_goal)
+                print("\n" + "Gripper opened")
+
+            elif key == 'c' : #CLOSE
+                joint_goal.data = 0.0
+                prismatic_joint_pub.publish(joint_goal)
+                print("\n" + "Gripper closed")
+
+            elif key == 'z' : #ZERO
+                joint_goal.data = 0.0
+                joint1_pub.publish(joint_goal)
+                joint2_pub.publish(joint_goal)
+                joint3_pub.publish(joint_goal)
+                joint4_pub.publish(joint_goal)
+                joint5_pub.publish(joint_goal)
+                revolute_joint_pub.publish(joint_goal)
+                print("\n" + "All joints are set to zero")
+
+            elif key == 's' : #START
+                joint_goal.data = 0.0
+                joint1_pub.publish(joint_goal)
+                joint5_pub.publish(joint_goal)
+                revolute_joint_pub.publish(joint_goal)
+                joint_goal.data = -0.9
+                joint2_pub.publish(joint_goal)
+                joint_goal.data = 0.7
+                joint3_pub.publish(joint_goal)
+                joint_goal.data = 1.5
+                joint4_pub.publish(joint_goal)
+                print("\n" + "Arm in start postion")
+
+            elif key == 'h' : #GRIP FROM SIDE
+                joint_goal.data = 0.0
+                joint1_pub.publish(joint_goal)
+                joint5_pub.publish(joint_goal)
+                revolute_joint_pub.publish(joint_goal)
+                joint_goal.data = 1.6
+                joint2_pub.publish(joint_goal)
+                joint_goal.data = -0.6
+                joint3_pub.publish(joint_goal)
+                joint_goal.data = -1.0
+                joint4_pub.publish(joint_goal)
+                print("\n" + "Arm in gripper position from side")
+
+            elif key == 'g' : #GRIP FROM ABOVE
+                joint_goal.data = 0.0
+                joint1_pub.publish(joint_goal)
+                joint5_pub.publish(joint_goal)
+                revolute_joint_pub.publish(joint_goal)
+                joint_goal.data = 1.2
+                joint2_pub.publish(joint_goal)
+                joint_goal.data = -1.6
+                joint3_pub.publish(joint_goal)
+                joint_goal.data = 1.5
+                joint4_pub.publish(joint_goal)
+                print("\n" + "Arm in gripper position from above")
+
+            elif key == '1' : #Joint 1
+                print("\n" + "----------------------------------" + "\n" + "Move Joint_1")
+                print(control)
+                joint_name = 'joint1'
+                while(1):
+                    key = getKey()
+                    if key == 'e' :
+                        joint_goal.data = checkJointLimits(round(joint1, 1) + 0.1, joint_name)
+                        joint1_pub.publish(joint_goal)
+                    elif key == "r" :
+                        joint_goal.data = checkJointLimits(round(joint1, 1) - 0.1, joint_name)
+                        joint1_pub.publish(joint_goal)
+                    elif key == '0' :
+                        joint_goal.data = 0.0
+                        joint1_pub.publish(joint_goal)
+                    elif key == ' ' :
+                        done = 0
+                        break
+
+            elif key == '2' : #Joint 2
+                print("\n" + "----------------------------------" + "\n" + "Move Joint_2")
+                print(control)
+                joint_name = 'joint2'
+                while(1):
+                    key = getKey()
+                    if key == 'e' :
+                        joint_goal.data = checkJointLimits(round(joint2, 1) + 0.1, joint_name)
+                        joint2_pub.publish(joint_goal)
+                    elif key == "r" :
+                        joint_goal.data = checkJointLimits(round(joint2, 1) - 0.1, joint_name)
+                        joint2_pub.publish(joint_goal)
+                    elif key == '0' :
+                        joint_goal.data = 0.0
+                        joint2_pub.publish(joint_goal)
+                    elif key == ' ' :
+                        done = 0
+                        break
+
+            elif key == '3' : #Joint 3
+                print("\n" + "----------------------------------" + "\n" + "Move Joint_3")
+                print(control)
+                joint_name = 'joint3'
+                while(1):
+                    key = getKey()
+                    if key == 'e' :
+                        joint_goal.data = checkJointLimits(round(joint3, 1) + 0.1, joint_name)
+                        joint3_pub.publish(joint_goal)
+                    elif key == "r" :
+                        joint_goal.data = checkJointLimits(round(joint3, 1) - 0.1, joint_name)
+                        joint3_pub.publish(joint_goal)
+                    elif key == '0' :
+                        joint_goal.data = 0.0
+                        joint3_pub.publish(joint_goal)
+                    elif key == ' ' :
+                        done = 0
+                        break
+
+            elif key == '4' : #Joint 4
+                print("\n" + "----------------------------------" + "\n" + "Move Joint_4")
+                print(control)
+                joint_name = 'joint4'
+                while(1):
+                    key = getKey()
+                    if key == 'e' :
+                        joint_goal.data = checkJointLimits(round(joint4, 1) + 0.1, joint_name)
+                        joint4_pub.publish(joint_goal)
+                    elif key == "r" :
+                        joint_goal.data = checkJointLimits(round(joint4, 1) - 0.1, joint_name)
+                        joint4_pub.publish(joint_goal)
+                    elif key == '0' :
+                        joint_goal.data = 0.0
+                        joint4_pub.publish(joint_goal)
+                    elif key == ' ' :
+                        done = 0
+                        break
+
+            elif key == '5' : #Joint 5
+                print("\n" + "----------------------------------" + "\n" + "Move Joint_5")
+                print(control)
+                joint_name = 'joint5'
+                while(1):
+                    key = getKey()
+                    if key == 'e' :
+                        joint_goal.data = checkJointLimits(round(joint5, 1) + 0.1, joint_name)
+                        joint5_pub.publish(joint_goal)
+                    elif key == "r" :
+                        joint_goal.data = checkJointLimits(round(joint5, 1) - 0.1, joint_name)
+                        joint5_pub.publish(joint_goal)
+                    elif key == '0' :
+                        joint_goal.data = 0.0
+                        joint5_pub.publish(joint_goal)
+                    elif key == ' ' :
+                        done = 0
+                        break
+
+            elif key == 'q' : #QUIT
+                print("\n" + "Leaving node...")
+                break
+
+            else:
+                if (key == '\x03'):
+                    break
+
+    except:
+        print("Error...")
+
+    if os.name != 'nt':
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)

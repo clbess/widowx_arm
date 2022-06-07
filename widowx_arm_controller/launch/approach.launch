@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="rostopic" type="rostopic" name="joint2" args="pub /joint_2/command std_msgs/Float64 1.5 " output="screen"/>
+</launch>
+
