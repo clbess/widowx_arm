@@ -1,4 +1,4 @@
-This ROS package is a corrected version of the package available at : 
+This ROS package is a corrected version of the package available at : https://github.com/RobotnikAutomation/widowx_arm
 In this version the gripper is not stuck when gripping an object.
 
 # widowx_arm
